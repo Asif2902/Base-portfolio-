@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base Portfolio Analyzer</title>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --secondary: #4f46e5;
+      --background: #f8fafc;
+      --text: #1e293b;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background: var(--background);
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .search-section {
+      padding: 2rem;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+    }
+
+    .search-box {
+      display: flex;
+      gap: 1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .address-input {
+      flex: 1;
+      padding: 0.875rem 1.25rem;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .search-btn {
+      padding: 0.875rem 1.5rem;
+      background: white;
+      color: var(--primary);
+      border: none;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .search-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .profile-section {
+      padding: 2rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .address-link {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.125rem;
+    }
+
+    .net-worth {
+      font-size: 1.5rem;
+      margin: 1rem 0 0;
+      font-weight: 700;
+    }
+
+    .tokens-container {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .tokens-header {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1.5fr 1.5fr;
+      gap: 1rem;
+      padding: 1rem 2rem;
+      background: #f1f5f9;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+
+    .token-row {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1.5fr 1.5fr;
+      gap: 1rem;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid #e2e8f0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .token-row:hover {
+      background: #f8fafc;
+    }
+
+    .token-name {
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .token-amount {
+      text-align: right;
+    }
+
+    .token-price {
+      text-align: right;
+      color: #64748b;
+    }
+
+    .token-value {
+      text-align: right;
+      color: #16a34a;
+      font-weight: 500;
+    }
+
+    .loading {
+      padding: 2rem;
+      text-align: center;
+      color: #64748b;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 1rem;
+      }
+
+      .search-box {
+        flex-direction: column;
+      }
+
+      .search-btn {
+        width: 100%;
+      }
+
+      .tokens-header,
+      .token-row {
+        grid-template-columns: 1.5fr 1fr 1fr 1fr;
+        padding: 1rem;
+        gap: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="search-section">
+      <div class="search-box">
+        <input type="text" class="address-input" 
+               placeholder="Enter Ethereum wallet address (0x...)" 
+               id="address-input">
+        <button class="search-btn" onclick="fetchData()">Analyze</button>
+      </div>
+    </div>
+
+    <div class="profile-section" id="profile" style="display: none;">
+      <a href="#" id="scanner-link" class="address-link" target="_blank"></a>
+      <div class="net-worth">Total Value: $<span id="net-worth">0.00</span></div>
+    </div>
+
+    <div class="tokens-container" id="tokens-box">
+      <div class="tokens-header">
+        <div>Token</div>
+        <div class="token-amount">Amount</div>
+        <div class="token-price">Price</div>
+        <div class="token-value">Value</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  async function fetchData() {
+      const walletAddress = document.getElementById('address-input').value.trim();
+      if (!walletAddress || !walletAddress.startsWith('0x')) {
+          alert('Please enter a valid Ethereum address starting with 0x');
+          return;
+      }
+
+      try {
+          document.getElementById('profile').style.display = 'none';
+          const tokensBox = document.getElementById('tokens-box');
+          tokensBox.innerHTML = '<div class="loading">Loading wallet data...</div>';
+
+          // Fetch ETH balance and price
+          const [ethBalanceRes, ethPriceRes] = await Promise.all([
+              fetch(`https://base.blockscout.com/api?module=account&action=balance&address=${walletAddress}`),
+              fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+          ]);
+
+          const ethBalanceData = await ethBalanceRes.json();
+          const ethPriceData = await ethPriceRes.json();
+          
+          const ethBalance = (ethBalanceData.result / 1e18).toFixed(5);
+          const ethPrice = ethPriceData.ethereum?.usd || 0;
+          const ethValue = ethBalance * ethPrice;
+
+          // Fetch ERC-20 tokens
+          const tokensRes = await fetch(`https://base.blockscout.com/api?module=account&action=tokenlist&address=${walletAddress}`);
+          const tokensData = await tokensRes.json();
+          const erc20Tokens = (tokensData.result || []).filter(t => t.type === 'ERC-20');
+
+          // Process tokens
+          const BATCH_SIZE = 20;
+          let tokenItems = [];
+          let totalWorth = ethValue;
+
+          for (let i = 0; i < erc20Tokens.length; i += BATCH_SIZE) {
+              const batch = erc20Tokens.slice(i, i + BATCH_SIZE);
+              const tokenAddresses = batch.map(t => t.contractAddress).join(',');
+
+              // Fetch DexScreener data for Base chain only
+              const dexscreenerData = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddresses}`)
+                  .then(r => r.json())
+                  .catch(() => ({ pairs: [] }));
+
+              batch.forEach(token => {
+                  // Filter pairs to only include Base chain (chainId: 8453)
+                  const baseChainPairs = (dexscreenerData.pairs || []).filter(p => 
+                      p.chainId === 'base' && 
+                      p.baseToken?.address?.toLowerCase() === token.contractAddress?.toLowerCase()
+                  );
+
+                  // Use the first pair found on Base chain
+                  const pair = baseChainPairs[0];
+                  
+                  const decimals = token.decimals || 18;
+                  const amount = token.balance / Math.pow(10, decimals);
+                  const price = pair?.priceUsd || 0;
+                  const value = amount * price;
+                  
+                  totalWorth += value;
+
+                  tokenItems.push({
+                      name: token.name || token.symbol || 'Unknown Token',
+                      amount: amount.toLocaleString(undefined, { maximumFractionDigits: 4 }),
+                      price: price.toLocaleString(undefined, { 
+                          minimumFractionDigits: 4,
+                          maximumFractionDigits: 6 
+                      }),
+                      value: value.toLocaleString('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                      }),
+                      pairUrl: pair?.url
+                  });
+              });
+          }
+
+          // Update UI (same as before)
+          document.getElementById('profile').style.display = 'block';
+          document.getElementById('scanner-link').textContent = 
+              `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
+          document.getElementById('scanner-link').href = 
+              `https://base.blockscout.com/address/${walletAddress}`;
+          
+          document.getElementById('net-worth').textContent = 
+              totalWorth.toLocaleString('en-US', { 
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2 
+              });
+
+          // Build tokens list (same as before)
+          tokensBox.innerHTML = `
+              <div class="tokens-header">
+                  <div>Token</div>
+                  <div class="token-amount">Amount</div>
+                  <div class="token-price">Price</div>
+                  <div class="token-value">Value</div>
+              </div>
+          `;
+
+          // Add ETH row (same as before)
+          const ethRow = document.createElement('div');
+          ethRow.className = 'token-row';
+          ethRow.innerHTML = `
+              <div class="token-name">Ethereum (ETH)</div>
+              <div class="token-amount">${parseFloat(ethBalance).toLocaleString()}</div>
+              <div class="token-price">$${ethPrice.toLocaleString('en-US', { 
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2 
+              })}</div>
+              <div class="token-value">${ethValue.toLocaleString('en-US', {
+                  style: 'currency',
+                  currency: 'USD',
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+              })}</div>
+          `;
+          ethRow.onclick = () => window.open('https://www.coingecko.com/en/coins/ethereum', '_blank');
+          tokensBox.appendChild(ethRow);
+
+          // Add ERC-20 tokens (same as before)
+          tokenItems.forEach(token => {
+              const row = document.createElement('div');
+              row.className = 'token-row';
+              row.innerHTML = `
+                  <div class="token-name" title="${token.name}">
+                      ${token.name.length > 20 ? token.name.substring(0, 18) + '...' : token.name}
+                  </div>
+                  <div class="token-amount">${token.amount}</div>
+                  <div class="token-price">$${token.price}</div>
+                  <div class="token-value">${token.value}</div>
+              `;
+              
+              if (token.pairUrl) {
+                  row.onclick = () => window.open(token.pairUrl, '_blank');
+                  row.style.cursor = 'pointer';
+              } else {
+                  row.style.cursor = 'default';
+              }
+              
+              tokensBox.appendChild(row);
+          });
+
+      } catch (error) {
+          console.error('Error:', error);
+          tokensBox.innerHTML = '<div class="loading">Error loading data. Please try again.</div>';
+      }
+  }
+  </script>
+</body>
+  </html>
